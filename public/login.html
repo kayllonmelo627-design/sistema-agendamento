@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Login</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #007bff, #00c6ff);
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    .box {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      width: 320px;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      animation: aparecer 0.6s ease;
+    }
+
+    @keyframes aparecer {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    h2 {
+      margin-bottom: 10px;
+      color: #333;
+    }
+
+    .sub {
+      font-size: 14px;
+      color: #777;
+      margin-bottom: 20px;
+    }
+
+    .input-group {
+      position: relative;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      outline: none;
+      transition: 0.2s;
+    }
+
+    input:focus {
+      border-color: #007bff;
+    }
+
+    .toggle {
+      position: absolute;
+      right: 10px;
+      top: 22px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #007bff;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: 0.2s;
+      margin-top: 10px;
+    }
+
+    button:hover {
+      background: #0056b3;
+    }
+
+    button.loading {
+      background: #999;
+      cursor: not-allowed;
+    }
+
+    #erro {
+      color: red;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+
+    .lembrar {
+      display: flex;
+      align-items: center;
+      font-size: 14px;
+      margin-top: 10px;
+      gap: 5px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="box">
+
+  <h2>Bem-vindo 👋</h2>
+  <div class="sub">Entre na sua conta</div>
+
+  <input id="usuario" placeholder="Usuário">
+
+  <div class="input-group">
+    <input id="senha" type="password" placeholder="Senha">
+    <span class="toggle" onclick="toggleSenha()">👁</span>
+  </div>
+
+  <div class="lembrar">
+    <input type="checkbox" id="lembrar">
+    <label for="lembrar">Lembrar usuário</label>
+  </div>
+
+  <button id="btnLogin" onclick="login()">Entrar</button>
+
+  <div id="erro"></div>
+
+</div>
+
+<script>
+
+function toggleSenha() {
+  const senha = document.getElementById("senha");
+  senha.type = senha.type === "password" ? "text" : "password";
+}
+
+// lembrar usuário
+window.onload = () => {
+  const salvo = localStorage.getItem("usuarioSalvo");
+  if (salvo) {
+    document.getElementById("usuario").value = salvo;
+    document.getElementById("lembrar").checked = true;
+  }
+};
+
+async function login() {
+  const usuario = document.getElementById("usuario").value;
+  const senha = document.getElementById("senha").value;
+  const erroDiv = document.getElementById("erro");
+  const btn = document.getElementById("btnLogin");
+
+  erroDiv.innerText = "";
+
+  // loading
+  btn.innerText = "Entrando...";
+  btn.classList.add("loading");
+  btn.disabled = true;
+
+  try {
+    const res = await fetch("/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ usuario, senha })
+    });
+
+    const data = await res.json();
+
+    if (data.erro) {
+      erroDiv.innerText = data.erro;
+    } else {
+      // salvar token
+      localStorage.setItem("token", data.token);
+
+      // lembrar usuário
+      if (document.getElementById("lembrar").checked) {
+        localStorage.setItem("usuarioSalvo", usuario);
+      } else {
+        localStorage.removeItem("usuarioSalvo");
+      }
+
+      window.location.href = "/";
+    }
+
+  } catch (err) {
+    erroDiv.innerText = "Erro ao conectar com o servidor";
+  }
+
+  // reset botão
+  btn.innerText = "Entrar";
+  btn.classList.remove("loading");
+  btn.disabled = false;
+}
+
+</script>
+
+</body>
+</html>

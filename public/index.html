@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Painel de Agendamento</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #eef1f5;
+      margin: 0;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 40px auto;
+      background: white;
+      padding: 25px;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .topo {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    h1 {
+      margin: 0;
+      color: #333;
+    }
+
+    .sair {
+      background: red;
+    }
+
+    .form {
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    input {
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      flex: 1;
+    }
+
+    button {
+      padding: 10px 14px;
+      border: none;
+      border-radius: 6px;
+      background: #007bff;
+      color: white;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      background: #0056b3;
+    }
+
+    .busca {
+      margin-top: 15px;
+      width: 100%;
+    }
+
+    .card {
+      background: #f9f9f9;
+      padding: 12px;
+      margin-top: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .acoes button {
+      margin-left: 5px;
+    }
+
+    #mensagem {
+      margin-top: 10px;
+      font-weight: bold;
+      padding: 10px;
+      border-radius: 6px;
+    }
+
+    #dashboard {
+      margin-top: 15px;
+      font-weight: bold;
+    }
+
+    .cancelar {
+      background: gray;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="topo">
+    <h1>Painel de Agendamento</h1>
+    <button class="sair" onclick="sair()">Sair</button>
+  </div>
+
+  <div class="form">
+    <input id="nome" placeholder="Nome">
+    <input id="horario" type="datetime-local">
+
+    <button onclick="agendar()" id="botaoAgendar">Agendar</button>
+    <button onclick="cancelarEdicao()" id="botaoCancelar" class="cancelar" style="display:none;">
+      Cancelar
+    </button>
+  </div>
+
+  <div id="mensagem"></div>
+
+  <input
+    id="busca"
+    class="busca"
+    placeholder="Buscar por nome..."
+    oninput="carregar()"
+  >
+
+  <div id="dashboard"></div>
+
+  <h2>Agendamentos</h2>
+
+  <div id="lista"></div>
+
+</div>
+
+<script>
+const token = localStorage.getItem("token");
+
+if (!token) {
+  window.location.href = "/login.html";
+}
+function formatarData(data) {
+  const d = new Date(data);
+
+  const dia = String(d.getDate()).padStart(2, '0');
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  const ano = d.getFullYear();
+
+  const hora = String(d.getHours()).padStart(2, '0');
+  const minuto = String(d.getMinutes()).padStart(2, '0');
+
+  return `${dia}/${mes}/${ano} às ${hora}:${minuto}`;
+}
+
+let editandoId = null;
+
+function sair() {
+  localStorage.removeItem("token");
+  window.location.href = "/login.html";
+}
+
+function cancelarEdicao() {
+  editandoId = null;
+
+  document.getElementById("nome").value = "";
+  document.getElementById("horario").value = "";
+
+  document.getElementById("botaoAgendar").innerText = "Agendar";
+  document.getElementById("botaoCancelar").style.display = "none";
+}
+
+// 🔗 FUNÇÃO PADRÃO COM TOKEN
+function fetchComToken(url, options = {}) {
+  const token = localStorage.getItem("token");
+
+  return fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + token,
+      ...(options.headers || {})
+    }
+  }).then(res => {
+
+    // 🔥 SE TOKEN DER ERRO → DESLOGA
+    if (res.status === 401 || res.status === 403) {
+      console.log("Token inválido, redirecionando...");
+      localStorage.removeItem("token");
+
+      // evita loop
+      if (window.location.pathname !== "/login.html") {
+        window.location.href = "/login.html";
+      }
+
+      return new Promise(() => {}); // trava aqui
+    }
+
+    return res;
+  });
+}
+
+async function carregar() {
+  const busca = document.getElementById("busca").value;
+
+  const resposta = await fetchComToken(`/agendamentos?busca=${busca}`);
+  const dados = await resposta.json();
+
+  const lista = document.getElementById("lista");
+  lista.innerHTML = "";
+
+  document.getElementById("dashboard").innerText =
+    `Total de agendamentos: ${dados.length}`;
+
+  dados.forEach(a => {
+    lista.innerHTML += `
+      <div class="card">
+        <div>
+          <strong>${a.nome}</strong><br>
+          ${formatarData(a.horario)}
+        </div>
+
+        <div class="acoes">
+          <button onclick="editar(${a.id})">Editar</button>
+          <button onclick="remover(${a.id})">Remover</button>
+        </div>
+      </div>
+    `;
+  });
+}
+
+async function agendar() {
+  const nome = document.getElementById("nome").value;
+  const horario = document.getElementById("horario").value;
+  const msg = document.getElementById("mensagem");
+  const botao = document.getElementById("botaoAgendar");
+
+  if (!nome || !horario) {
+    msg.style.background = "#ffdddd";
+    msg.style.color = "red";
+    msg.innerText = "Preencha os campos!";
+    return;
+  }
+
+  if (editandoId !== null) {
+    const resposta = await fetchComToken(`/agendamentos/${editandoId}`, {
+      method: "PUT",
+      body: JSON.stringify({ nome, horario })
+    });
+
+    const dados = await resposta.json();
+
+    if (dados.erro) {
+      msg.style.background = "#ffdddd";
+      msg.style.color = "red";
+      msg.innerText = dados.erro;
+      return;
+    }
+
+    msg.style.background = "#ddffdd";
+    msg.style.color = "green";
+    msg.innerText = dados.sucesso;
+
+    editandoId = null;
+    botao.innerText = "Agendar";
+    document.getElementById("botaoCancelar").style.display = "none";
+  } else {
+    const resposta = await fetchComToken("/agendar", {
+      method: "POST",
+      body: JSON.stringify({ nome, horario })
+    });
+
+    const dados = await resposta.json();
+
+    if (dados.erro) {
+      msg.style.background = "#ffdddd";
+      msg.style.color = "red";
+      msg.innerText = dados.erro;
+      return;
+    }
+
+    msg.style.background = "#ddffdd";
+    msg.style.color = "green";
+    msg.innerText = dados.sucesso;
+  }
+
+  document.getElementById("nome").value = "";
+  document.getElementById("horario").value = "";
+
+  carregar();
+}
+
+async function remover(id) {
+  if (!confirm("Tem certeza que deseja remover?")) return;
+
+  await fetchComToken(`/agendamentos/${id}`, {
+    method: "DELETE"
+  });
+
+  carregar();
+}
+
+async function editar(id) {
+  const resposta = await fetchComToken(`/agendamentos`);
+  const dados = await resposta.json();
+
+  const agendamento = dados.find(a => a.id === id);
+  if (!agendamento) return;
+
+  document.getElementById("nome").value = agendamento.nome;
+  document.getElementById("horario").value = agendamento.horario;
+
+  editandoId = id;
+  document.getElementById("botaoAgendar").innerText = "Salvar edição";
+  document.getElementById("botaoCancelar").style.display = "inline-block";
+}
+
+carregar();
+
+</script>
+
+</body>
+</html>
